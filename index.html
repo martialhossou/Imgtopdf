@@ -530,8 +530,12 @@
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
+    link.rel = 'noopener';
+    link.style.display = 'none';
+    document.body.appendChild(link);
     link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
 
   function loadImage(file) {
@@ -636,7 +640,8 @@
       await new Promise(r => setTimeout(r, 50));
 
       if (pdf && successCount > 0 && !cancelRequested) {
-        pendingPdfBlob = pdf.output('blob');
+        const arrayBuffer = pdf.output('arraybuffer');
+        pendingPdfBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
         downloadBtn.style.display = 'block';
         progressText.textContent = `PDF prêt (${successCount} image(s)). Cliquez sur "Télécharger le PDF".`;
         showToast(`PDF prêt — ${successCount} image(s) convertie(s).`, 'success');

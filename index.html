@@ -341,10 +341,7 @@
         <div class="step-head"><span class="step-num">04</span><h2>Convertir</h2></div>
         <button class="btn" id="convertBtn" type="button" disabled>Convertir en PDF</button>
         <button class="btn btn-ghost" id="cancelBtn" type="button" style="display:none;">Annuler</button>
-        <a class="btn" id="downloadBtn" href="#" style="display:none; text-decoration:none;" download="images-converties.pdf">Télécharger le PDF</a>
-        <div class="hint" id="downloadFallbackHint" style="display:none; text-align:center; font-size:0.76rem; color:var(--text-faint); margin-top:8px;">
-          Si rien ne se passe, <a href="#" id="downloadFallbackLink" style="color:var(--text); text-decoration:underline;">ouvrez le PDF dans un nouvel onglet</a> puis enregistrez-le.
-        </div>
+        <button class="btn" id="downloadBtn" type="button" style="display:none;">Télécharger le PDF</button>
 
         <div class="progress-wrapper" id="progressWrapper">
           <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
@@ -375,8 +372,6 @@
   const convertBtn = document.getElementById('convertBtn');
   const cancelBtn = document.getElementById('cancelBtn');
   const downloadBtn = document.getElementById('downloadBtn');
-  const downloadFallbackHint = document.getElementById('downloadFallbackHint');
-  const downloadFallbackLink = document.getElementById('downloadFallbackLink');
   const progressWrapper = document.getElementById('progressWrapper');
   const progressFill = document.getElementById('progressFill');
   const progressText = document.getElementById('progressText');
@@ -391,7 +386,7 @@
   let isConverting = false;
   let cancelRequested = false;
   let objectURLs = [];
-  let pendingPdfUrl = null;
+  let pendingPdfBlob = null;
 
   let toastTimeout;
   function showToast(message, type = '') {
@@ -418,10 +413,8 @@
     fileList.innerHTML = '';
     objectURLs.forEach(url => URL.revokeObjectURL(url));
     objectURLs = [];
-    if (pendingPdfUrl) { URL.revokeObjectURL(pendingPdfUrl); pendingPdfUrl = null; }
+    pendingPdfBlob = null;
     downloadBtn.style.display = 'none';
-    downloadFallbackHint.style.display = 'none';
-
     const hasFiles = files.length > 0;
     lockStep(step2, !hasFiles);
     lockStep(step3, !hasFiles);
@@ -532,6 +525,15 @@
     return { x, y, w: drawW, h: drawH };
   }
 
+  function downloadBlob(blob, filename){
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
   function loadImage(file) {
     return new Promise((resolve) => {
       const url = URL.createObjectURL(file);
@@ -568,8 +570,7 @@
     convertBtn.disabled = true;
     cancelBtn.style.display = 'block';
     downloadBtn.style.display = 'none';
-    downloadFallbackHint.style.display = 'none';
-    if (pendingPdfUrl) { URL.revokeObjectURL(pendingPdfUrl); pendingPdfUrl = null; }
+    pendingPdfBlob = null;
     progressWrapper.classList.add('active');
     progressFill.style.width = '0%';
     progressText.textContent = 'Initialisation…';
@@ -635,14 +636,8 @@
       await new Promise(r => setTimeout(r, 50));
 
       if (pdf && successCount > 0 && !cancelRequested) {
-        const pdfBlob = pdf.output('blob');
-        pendingPdfUrl = URL.createObjectURL(pdfBlob);
-        downloadBtn.href = pendingPdfUrl;
-        downloadFallbackLink.href = pendingPdfUrl;
-        downloadFallbackLink.target = '_blank';
-        downloadFallbackLink.rel = 'noopener';
+        pendingPdfBlob = pdf.output('blob');
         downloadBtn.style.display = 'block';
-        downloadFallbackHint.style.display = 'block';
         progressText.textContent = `PDF prêt (${successCount} image(s)). Cliquez sur "Télécharger le PDF".`;
         showToast(`PDF prêt — ${successCount} image(s) convertie(s).`, 'success');
       } else if (cancelRequested) {
@@ -667,8 +662,9 @@
 
   convertBtn.addEventListener('click', convertToPDF);
   downloadBtn.addEventListener('click', () => {
-    if (!pendingPdfUrl) return;
-    showToast('Téléchargement lancé.', 'success');
+    if (!pendingPdfBlob) return;
+    downloadBlob(pendingPdfBlob, 'images-converties.pdf');
+    showToast('PDF téléchargé.', 'success');
   });
   cancelBtn.addEventListener('click', () => {
     if (isConverting) {
